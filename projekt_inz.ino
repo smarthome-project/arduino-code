@@ -1,6 +1,16 @@
-#include <Math.h>
+#include <math.h>
 #define DEVICE_MAX_NUM 14
 #define SLEEP_MS_STEP 10
+
+
+int latchPin = 52;
+int clockPin = 51;
+int dataPin = 50;
+
+
+int shiftRegister[16];
+byte SR1 = 0;
+byte SR2 = 0;
 
 struct device
 {
@@ -39,6 +49,7 @@ void setup() {
   for(int pin = 22; pin < 54; pin++) {
     pinMode(pin, OUTPUT);
   }
+  Serial.print("READY");
 }
 
 String input;
@@ -68,6 +79,10 @@ void serialFunc(String input)
     enableDevice(parameters);
   } else if(funcName == "showDevice") {
     showDevice(parameters);
+  } else if (funcName == "initRegister") {
+    initRegister(parameters);
+  } else if (funcName == "shiftOne") {
+    shiftOne(parameters);
   }
 }
 
@@ -185,6 +200,56 @@ void enableDevice(String params) {
   }
 
   printDevice(deviceId);
+}
+
+//a list of 16 states 0 or 1. 1,1,0,0,1...
+void initRegister(String params) {
+  for(int i= 0; i< 8;i++) {
+    int state = splitParams(params, ',', i);
+    if (state == 1) {
+      bitClear(SR1, i);
+    } else {
+      bitSet(SR1, i);
+    }
+  }
+  writeToRegister();
+}
+
+void shiftOne(String params) {
+  int who = splitParams(params, ',', 0);
+  int requested =  splitParams(params, ',', 1);
+
+  bool change = false;
+  if (who<8) {
+    int state =  bitRead(SR2, who);
+      if(requested == 1 && bitRead(SR1, who)==1){
+        bitClear(SR1, who);
+        change = true;
+      }else if (requested == 0 && bitRead(SR1, who)==0) {
+        bitSet(SR1, who);
+        change = true;
+      }
+  } else if(who<16) {
+    int state =  bitRead(SR2, who-8);
+    if(requested == 1 && state==1){
+       bitClear(SR2, who-8);
+       change = true;
+    }else if(requested == 0 && state==0) {
+        bitSet(SR2, who-8);
+        change = true;
+    }
+  }
+
+  if (change)
+    writeToRegister();
+}
+
+void writeToRegister() {
+  digitalWrite(latchPin, LOW);
+  shiftOut(dataPin, clockPin, MSBFIRST, SR2);
+  shiftOut(dataPin, clockPin, MSBFIRST, SR1);
+  delay(100);
+  digitalWrite(latchPin, HIGH);
 }
 
 //int id
