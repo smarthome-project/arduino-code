@@ -49,7 +49,7 @@ void setup() {
   for(int pin = 22; pin < 54; pin++) {
     pinMode(pin, OUTPUT);
   }
-  Serial.print("READY");
+  Serial.println("READY");
 }
 
 String input;
