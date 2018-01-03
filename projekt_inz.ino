@@ -2,11 +2,13 @@
 #define DEVICE_MAX_NUM 14
 #define SLEEP_MS_STEP 10
 
+bool secured = false;
 
 int latchPin = 52;
 int clockPin = 51;
 int dataPin = 50;
 
+int pirPin = 32;
 
 int shiftRegister[16];
 byte SR1 = 0;
@@ -49,18 +51,25 @@ void setup() {
   for(int pin = 22; pin < 54; pin++) {
     pinMode(pin, OUTPUT);
   }
-  Serial.println("READY");
+
+ pinMode(pirPin, INPUT);
+ 
+  done();
 }
 
 String input;
 Device devices[DEVICE_MAX_NUM];
 
 void loop() {
-  if (Serial.available() > 0) {
-    input = Serial.readString();
-    serialFunc(input);
+  if( !checkAlarm() ) {
+      if (Serial.available() > 0) {
+        input = Serial.readString();
+        serialFunc(input);
+      }
+      checkDevices(); 
+  } else {
+    alarm();
   }
-  checkDevices();
   delay(SLEEP_MS_STEP);
 }
 
@@ -69,20 +78,22 @@ void serialFunc(String input)
   String funcName = getValue(input, '(', 0);
   String parameters = getValue(getValue(input, '(', 1), ')', 0);
   
-  if(funcName == "deviceInit") {
+  if(funcName == "in") { // deviceInit
     deviceInit(parameters);
-  } else if(funcName == "led") {
+  } else if(funcName == "l") { // led
     setLedRGB(parameters);
-  } else if(funcName == "ledTime") {
+  } else if(funcName == "lt") { // ledTime
     setLedRGBtime(parameters);
-  } else if(funcName == "enable") {
+  } else if(funcName == "e") { // enable
     enableDevice(parameters);
-  } else if(funcName == "showDevice") {
+  } else if(funcName == "sd") { // showDevice
     showDevice(parameters);
-  } else if (funcName == "initRegister") {
+  } else if (funcName == "ir") { // initRegister
     initRegister(parameters);
-  } else if (funcName == "shiftOne") {
+  } else if (funcName == "so") { // shiftOne
     shiftOne(parameters);
+  } else if (funcName == "sec") { // setSecured
+    setSecured(parameters);
   }
 }
 
@@ -131,7 +142,8 @@ void setLedRGBtime(String param) {
 
   devices[deviceId].fade = true;
 
-  printDevice(deviceId);
+  done();
+  //printDevice(deviceId);
 }
 
 //int id, String r:g:b
@@ -157,7 +169,8 @@ void setLedRGB(String param) {
   analogWrite(devices[deviceId].pin2, devices[deviceId].p2_val);
   analogWrite(devices[deviceId].pin3, devices[deviceId].p3_val);
 
-  printDevice(deviceId);
+  done();
+  //printDevice(deviceId);
 }
 
 //int id, bool pwm, int p1, int p2, int p3
@@ -169,7 +182,8 @@ void deviceInit(String params) {
   devices[deviceId].pin2 = splitParams(params, ',', 3);
   devices[deviceId].pin3 = splitParams(params, ',', 4);
   
-  printDevice(deviceId);
+  done();
+  //printDevice(deviceId);
 }
 
 //int id, bool status
@@ -198,8 +212,8 @@ void enableDevice(String params) {
     digitalWrite(devices[deviceId].pin2, LOW);
     digitalWrite(devices[deviceId].pin3, LOW);
   }
-
-  printDevice(deviceId);
+  done();
+  //printDevice(deviceId);
 }
 
 //a list of 16 states 0 or 1. 1,1,0,0,1...
@@ -216,6 +230,9 @@ void initRegister(String params) {
 }
 
 void shiftOne(String params) {
+
+  Serial.println("dupa");
+  
   int who = splitParams(params, ',', 0);
   int requested =  splitParams(params, ',', 1);
 
@@ -239,9 +256,11 @@ void shiftOne(String params) {
         change = true;
     }
   }
-
+  
   if (change)
     writeToRegister();
+  else
+    done();
 }
 
 void writeToRegister() {
@@ -250,6 +269,8 @@ void writeToRegister() {
   shiftOut(dataPin, clockPin, MSBFIRST, SR1);
   delay(100);
   digitalWrite(latchPin, HIGH);
+
+  done();
 }
 
 //int id
@@ -279,10 +300,42 @@ void printDevice(int id) {
   Serial.print("p1_adder: " + String(devices[id].p1_adder) + "\n");
   Serial.print("p2_adder: " + String(devices[id].p2_adder) + "\n");
   Serial.print("p3_adder: " + String(devices[id].p3_adder) + "\n");
+  done();
 }
 
-int colorDiff(int c, int tc){
+int colorDiff(int c, int tc)
+{
   return tc - c;
+}
+
+bool checkAlarm()
+{
+  int val = digitalRead(pirPin);
+  return (val == HIGH && secured)? true:false;  
+}
+
+// true or false
+void setSecured(String params) 
+{
+  secured = (params == "true)") ? true : false;
+  done();
+}
+
+void alarm()
+{
+  Serial.println("ALARM");
+  while(secured)
+  {
+    if (Serial.available() > 0) {
+      input = Serial.readString();
+      String funcName = getValue(input, '(', 0);
+      String parameters = getValue(getValue(input, '(', 1), ')', 0);
+      if (funcName == "sec") { // setSecured
+          setSecured(parameters);
+      }
+    }    
+  }
+  done();
 }
 
 String getValue(String data, char separator, int index)
@@ -316,3 +369,9 @@ int splitParams(String data, char separator, int index)
   }
   return found > index ? data.substring(strIndex[0], strIndex[1]).toInt() : 0;
 }
+
+void done()
+{
+  Serial.println("R");
+}
+
