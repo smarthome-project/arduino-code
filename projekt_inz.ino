@@ -1,6 +1,11 @@
 #include <math.h>
+#include <dht.h> 
+
 #define DEVICE_MAX_NUM 14
 #define SLEEP_MS_STEP 10
+#define DHT_APIN 30
+                
+dht DHT;
 
 bool secured = false;
 
@@ -9,6 +14,7 @@ int clockPin = 51;
 int dataPin = 50;
 
 int pirPin = 32;
+int laserPin = 0;
 
 int shiftRegister[16];
 byte SR1 = 0;
@@ -49,7 +55,8 @@ void setup() {
   }
 
   for(int pin = 22; pin < 54; pin++) {
-    pinMode(pin, OUTPUT);
+    if(pin != 30)
+      pinMode(pin, OUTPUT);
   }
 
  pinMode(pirPin, INPUT);
@@ -77,7 +84,6 @@ void serialFunc(String input)
 {
   String funcName = getValue(input, '(', 0);
   String parameters = getValue(getValue(input, '(', 1), ')', 0);
-  
   if(funcName == "in") { // deviceInit
     deviceInit(parameters);
   } else if(funcName == "l") { // led
@@ -94,6 +100,8 @@ void serialFunc(String input)
     shiftOne(parameters);
   } else if (funcName == "sec") { // setSecured
     setSecured(parameters);
+  } else if (funcName == "gc") { // getClimat
+    getClimat();
   }
 }
 
@@ -186,6 +194,12 @@ void deviceInit(String params) {
   //printDevice(deviceId);
 }
 
+void getClimat() {
+  DHT.read11(DHT_APIN);
+  Serial.println("C" + String(DHT.temperature) + ':' + String(DHT.humidity) );
+  done();
+}
+
 //int id, bool status
 void enableDevice(String params) {
   int deviceId = splitParams(params, ',', 0);
@@ -230,8 +244,6 @@ void initRegister(String params) {
 }
 
 void shiftOne(String params) {
-
-  Serial.println("dupa");
   
   int who = splitParams(params, ',', 0);
   int requested =  splitParams(params, ',', 1);
@@ -311,7 +323,8 @@ int colorDiff(int c, int tc)
 bool checkAlarm()
 {
   int val = digitalRead(pirPin);
-  return (val == HIGH && secured)? true:false;  
+  int laser = analogRead(laserPin);
+  return ( ( val == HIGH || laser < 650) && secured)? true:false;  
 }
 
 // true or false
@@ -374,4 +387,3 @@ void done()
 {
   Serial.println("R");
 }
-
